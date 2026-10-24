@@ -4,8 +4,11 @@ A neck-and-wrist yoke for SecretFlasherManaka (BepInEx 6 IL2CPP): a metal bar ac
 and a wrist cuff at each end; her hands are held up beside her head. Worn on the body like SpreaderBar, so she can still walk.
 Single-player/offline only.
 
-**Status 0.1.0:** usable, L3 (see Verification). Pick **Yoke** in the common ring (hold 1; 5th page with SpreaderBar and WallRestraint
-installed) or put it on a number key; hold **F** to struggle free (`Unlock.SuccessChance`, default: the first attempt).
+**Needs RestraintHub** (0.2.0+; included in the package): ring entry, number shortcuts, the list of worn restraints, F and + / -
+routing (only while the yoke is the selected restraint), input blocking and conflicts are the hub's (`mods/RestraintHub/README.md`).
+
+**Status 0.2.0:** usable, L3 (see Verification). Pick **Yoke** in the common ring (hold 1; the restraint page after the game's, page
+5) or put it on a number key; hold **F** to struggle free (`Unlock.SuccessChance`, default: the first attempt).
 
 - **Pose:** both arms are aimed every frame on top of the animation (walking, crawling, idle ...): the forearm passes up through
   its cuff as upright as the arm allows, the cuff near the wrist (`Pose.CuffOnForearm`), the upper arm reaching its elbow exactly
@@ -13,7 +16,7 @@ installed) or put it on a number key; hold **F** to struggle free (`Unlock.Succe
 - **Like handcuffs:** walking and crouching / crawling work; no running (Shift is ignored, except to end a pose skill). What needs
   her hands is refused with "Can't do that with the yoke on.": masturbating, dildo, the game's handcuffs, eye mask, drinking,
   dropping items, taking clothes off / opening the coat, pose skills. A pose skill that runs when the yoke goes on is ended.
-  Refused while the game's handcuffs are on or WallRestraint holds her.
+  Refused while something else holds her neck or arms (the game's handcuffs, the wall restraint) - the hub checks.
 - **Width:** `+` / `-` while it is on (2 % steps, saved in `Yoke.Width`): 1 = the model's proportions. Narrower stands her forearms
   up; `+` stops when the forearms would lean more than 45 deg (they would lie across the cuffs) or the arms cannot reach.
 - **Size:** the whole yoke is scaled so the neck ring fits her neck (estimated from the spine; sizes differ per save); it is sized
@@ -46,7 +49,7 @@ cuffs move along the bar and the rods stretch. 54k triangles; the game's handcuf
 | Model.MetalShade | 0.3 | brightness of the metal |
 | Pose.NeckRingAt | 0.25 | neck ring height on the neck (0 = base, 1 = head joint) |
 | Pose.CuffOnForearm | 0.88 | preferred cuff place on the forearm (0 = elbow, 1 = wrist; capped so the ring stays below the hand) |
-| Debug.Disable | 0 | bit 1 = do not pose the arms; 2 = aim with the LateUpdate bone lengths; 4 = block no input (negative controls) |
+| Debug.Disable | 0 | bit 1 = do not pose the arms; 2 = aim with the LateUpdate bone lengths (negative controls; blocking no input: RestraintHub's Debug.Disable 1) |
 
 ## Diagnostics (bridge, session started with `--allow-invoke`)
 `game call Yoke.YokeController LockHere | Release`, `game get Yoke.YokeController::Status` (scale, neck / hole sizes, width,
@@ -66,10 +69,12 @@ per arm: cuff place on the forearm, forearm lean, how far the upper arm misses i
   (first measured 20 % small), no exception; struggled free and saved again (slot left without the yoke). With SpreaderBar: both
   shown together. "Amateur" save: scale 0.081, cuffs 0.53 m apart, forearms 41 deg, miss 0 (screenshot).
 
+- L3 0.2.0 with RestraintHub (2026-10-24): chosen in the ring (page 5, select + click), selected in the list; `-` changed only the
+  yoke while selected, F with the bar selected left the yoke on; refusals and the pose-skill negative control through the hub.
+  Details: `mods/RestraintHub/README.md`.
+
 ## Known limits / next
-- `+` / `-` change the yoke and SpreaderBar's bar together when both are on; one F hold frees both.
 - At the model's width the forearms lean ~40 deg out (the cuffs are wider than her bent arms reach upright); `-` to ~0.85 stands
   them up. The cuffs do not tilt with the forearm.
 - The hands keep the animation's angle at the wrist (they bend inward a little).
 - The neck size is an estimate (12 % of the spine), like WallRestraint's collar.
-- WallRestraint does not check for the yoke yet (the yoke refuses while she is on the wall, not the other way round).

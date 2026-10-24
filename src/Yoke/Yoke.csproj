@@ -4,7 +4,7 @@
   <PropertyGroup>
     <AssemblyName>Yoke</AssemblyName>
     <RootNamespace>Yoke</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Description>Yoke - a neck and wrist yoke for SecretFlasherManaka (BepInEx IL2CPP)</Description>
   </PropertyGroup>
 
@@ -13,6 +13,8 @@
     <Reference Include="UnityEngine.UIModule"><HintPath>$(SfmInterop)\UnityEngine.UIModule.dll</HintPath><Private>false</Private></Reference>
     <!-- The model, exported from Yoke_V1.1_Z88OaNZ.blend by tools/export_model.py (see README). -->
     <EmbeddedResource Include="assets\yoke.ykm" LogicalName="Yoke.assets.yoke.ykm" />
+    <!-- Hard dependency: ring entry, selection, F / + / - routing, input blocking (deployed and packaged next to this mod). -->
+    <ProjectReference Include="..\RestraintHub\RestraintHub.csproj" Private="false" />
   </ItemGroup>
 
   <!-- Compile the shared SfmKit sources into this DLL. -->

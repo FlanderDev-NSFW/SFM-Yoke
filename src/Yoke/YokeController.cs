@@ -1,6 +1,5 @@
 using System;
 using System.Globalization;
-using System.Reflection;
 using ExposureUnnoticed2.Master.Action;
 using ExposureUnnoticed2.Object3D.Player.Scripts;
 using ExposureUnnoticed2.Scripts.InGame;
@@ -15,7 +14,8 @@ using Yoke.Logic;
 namespace Yoke
 {
     /// <summary>
-    /// Owns the yoke: ring entry, lock state, width keys, the arm pose and the model. Bridge diagnostics (session started with
+    /// Owns the yoke: lock state, width, the arm pose and the model. The ring entry, number shortcuts, F / + / - routing and the
+    /// input blocking are RestraintHub's (<see cref="Plugin.Entry"/>). Bridge diagnostics (session started with
     /// <c>--allow-invoke</c>): <c>game call Yoke.YokeController LockHere</c> / <c>Release</c>, <c>game get Yoke.YokeController::Status</c>.
     /// </summary>
     public sealed class YokeController : MonoBehaviour
@@ -25,11 +25,7 @@ namespace Yoke
         public YokeController(IntPtr pointer) : base(pointer) { }
 
         public const int RingItemValue = 9300; // SpreaderBar 9100, WallRestraint 9200
-        internal RingEntry Ring;
         internal readonly LockMachine Machine = new LockMachine();
-        internal bool InteractHeld;
-        private readonly GameUi _ui = new GameUi();
-        private readonly PlusMinusKeys _widthKeys = new PlusMinusKeys();
         private IntPtr _gameData;
         private static int _failures;
 
@@ -44,7 +40,6 @@ namespace Yoke
         private void Awake()
         {
             Instance = this;
-            Ring = new RingEntry(RingItemValue, Patches.LabelKey, OnRingChosen, Plugin.Logger, "yoke");
         }
 
         private void Update()
@@ -56,16 +51,14 @@ namespace Yoke
         [HideFromIl2Cpp]
         private void Tick()
         {
-            bool panel = _ui.PanelOpen();
-            Ring.Tick(panel);
             TrackSaveIdentity();
             if (PlayerController.Instance == null || GameState.GameStateData == null) return;
             WatchSize();
-            WatchWidthKeys(panel);
+            WatchWidthKeys();
             Machine.AttemptSeconds = Plugin.AttemptSeconds.Value; // live: config edits apply without a restart
             Machine.BaseChance = Plugin.SuccessChance.Value;
-            // Interactions take precedence: no struggling inside an interaction area, in menus or with the ring open.
-            bool unlockAllowed = InteractHeld && Machine.State == LockState.Locked && !panel && !GameUi.RingOpen() && !_ui.InInteractArea();
+            // F counts only while the yoke is the selected restraint, outside menus and interaction areas (the hub decides).
+            bool unlockAllowed = Plugin.Entry.StruggleHeld && Machine.State == LockState.Locked;
             switch (Machine.Tick(Time.deltaTime, unlockAllowed, UnityEngine.Random.value))
             {
                 case LockMachine.Event.Locked:
@@ -86,36 +79,21 @@ namespace Yoke
             }
         }
 
-        // --- ring choice, refusals ------------------------------------------------------------------------------------------
+        // --- ring choice -----------------------------------------------------------------------------------------------------
 
+        /// <summary>The ring entry or a number key, when the yoke is off and nothing worn holds her neck or arms (the hub checked).</summary>
         [HideFromIl2Cpp]
-        private void OnRingChosen()
+        internal void OnRingChosen()
         {
-            if (Machine.Worn)
-            {
-                GameUi.Message("The yoke is already on - hold F to struggle free.");
-                return;
-            }
             string result = LockHere();
             if (Machine.Worn) GameUi.PlaySe(InGameSoundManager.SeType.CommonEquip);
             else GameUi.Message("Can't put the yoke on: " + (result.StartsWith("refused: ") ? result.Substring(9) : result));
         }
 
-        private float _refusedAt = -10f;
-
-        /// <summary>The input hook dropped something that needs her hands.</summary>
-        internal void OnRefused()
-        {
-            if (Time.unscaledTime - _refusedAt < 1f) return;
-            _refusedAt = Time.unscaledTime;
-            GameUi.Message("Can't do that with the yoke on.");
-            Plugin.Logger.LogInfo("[SFM-ACCEPT] refused: an action that needs her hands");
-        }
-
         // --- save identity ----------------------------------------------------------------------------------------------------
 
         [HideFromIl2Cpp]
-        internal void OnSaveLoaded(bool locked, float chance, int shortcuts)
+        internal void OnSaveLoaded(bool locked, float chance)
         {
             Release();
             if (locked)
@@ -123,11 +101,10 @@ namespace Yoke
                 Machine.Restore(true, chance);
                 _measured = false; // measured on her body in the next LateUpdate
             }
-            Ring.OnShortcutsLoaded(shortcuts);
             _gameData = GameState.GameStateData == null ? IntPtr.Zero : GameState.GameStateData.Pointer;
         }
 
-        /// <summary>A new game or the title screen replaces the game data without a load: off, forget the keys.</summary>
+        /// <summary>A new game or the title screen replaces the game data without a load: off.</summary>
         [HideFromIl2Cpp]
         private void TrackSaveIdentity()
         {
@@ -136,7 +113,6 @@ namespace Yoke
             if (ptr == _gameData) return;
             _gameData = ptr;
             if (Machine.Worn) Release();
-            Ring.Reset();
         }
 
         // --- lock / release -------------------------------------------------------------------------------------------------
@@ -146,7 +122,8 @@ namespace Yoke
         private float _scale;
         private bool _measured;
 
-        /// <summary>Put the yoke on (the ring entry; also a bridge diagnostic).</summary>
+        /// <summary>Put the yoke on (the ring entry; also a bridge diagnostic - which skips the hub's check for restraints that
+        /// hold the same parts).</summary>
         public static string LockHere()
         {
             try
@@ -155,8 +132,6 @@ namespace Yoke
                 var player = PlayerController.Instance;
                 if (c == null || player == null || player.Pca == null || player.Pca.Animator == null || GameState.GameStateData == null) return "not in game";
                 if (c.Machine.Worn) return "already on";
-                if (GameStateFacade.IsAttachSomeHandcuffs() || GameState.GameStateData.PlayerIsAttachMapHandcuffs) return "refused: her hands are cuffed";
-                if (WallRestraintWorn()) return "refused: she is restrained to a wall";
                 if (!c.Measure(player.Pca.Animator, out string problem)) return "refused: " + problem;
                 // Pose skills need her arms (hands behind the head ...) and cannot be chosen while the yoke is on: end one that runs.
                 if (InPose(player)) player.Pca.PlayerAction.ChangeAction(ActionType.None);
@@ -271,21 +246,6 @@ namespace Yoke
             return action != null && (int)action.Type >= (int)ActionType.GanimataWalk;
         }
 
-        /// <summary>WallRestraint holds her arms too: no yoke while it is on (soft dependency by reflection, shape checked).</summary>
-        private static bool WallRestraintWorn()
-        {
-            try
-            {
-                var type = Type.GetType("WallRestraint.WallController, WallRestraint", false);
-                var inst = type?.GetField("Instance", BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.Public)?.GetValue(null);
-                var machine = inst == null ? null : type.GetField("Machine", BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public)?.GetValue(inst);
-                // its own copy of SfmKit's LockMachine (another type than ours): read Worn by name
-                var worn = machine?.GetType().GetProperty("Worn");
-                return worn != null && worn.PropertyType == typeof(bool) && (bool)worn.GetValue(machine);
-            }
-            catch (Exception) { return false; }
-        }
-
         // --- width: + / - while it is on -------------------------------------------------------------------------------------
 
         private string _said;
@@ -302,11 +262,11 @@ namespace Yoke
         }
 
         [HideFromIl2Cpp]
-        private void WatchWidthKeys(bool panel)
+        private void WatchWidthKeys()
         {
-            if (Machine.State != LockState.Locked || !_measured || panel || GameUi.RingOpen()) return;
-            int dir = _widthKeys.Poll();
-            if (dir == 0) return;
+            // + / - reach the yoke only while it is the selected restraint (the hub routes them, outside menus).
+            int dir = Plugin.Entry.TakeStep();
+            if (dir == 0 || Machine.State != LockState.Locked || !_measured) return;
             var anim = PlayerController.Instance.Pca.Animator;
             float now = Width();
             float min = Model.MinWidth(), max = 1.6f;

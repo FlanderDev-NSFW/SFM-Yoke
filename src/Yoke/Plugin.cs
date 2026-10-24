@@ -5,19 +5,23 @@ using BepInEx.Configuration;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
 using Il2CppInterop.Runtime.Injection;
+using RestraintHub;
 using Yoke.Logic;
 
 namespace Yoke
 {
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
+    [BepInDependency(Hub.Guid, BepInDependency.DependencyFlags.HardDependency)]
     public sealed class Plugin : BasePlugin
     {
         public const string PluginGuid = "com.local.yoke";
         public const string PluginName = "Yoke";
-        public const string PluginVersion = "0.1.0";
+        public const string PluginVersion = "0.2.0";
         private const string ModelResource = "Yoke.assets.yoke.ykm";
 
         internal static ManualLogSource Logger;
+        /// <summary>The yoke's registration with RestraintHub (ring entry, selection, F and + / -).</summary>
+        internal static Restraint Entry;
         public static ConfigEntry<string> RingLabel;
         public static ConfigEntry<float> AttemptSeconds, SuccessChance;
         public static ConfigEntry<float> Width, StepPercent, Size, NeckClearanceCm, MetalShade, NeckRingAt, CuffOnForearm;
@@ -50,7 +54,7 @@ namespace Yoke
                 "Preferred place of the wrist cuffs on the forearm (0 = elbow, 1 = wrist); the pose may move it a little to keep the " +
                 "forearms upright.", new AcceptableValueRange<float>(0.55f, 0.97f)));
             DebugDisable = Config.Bind("Debug", "Disable", 0,
-                "Bit mask for tests: 1 = do not pose the arms; 2 = aim with the LateUpdate bone lengths (not the drawn ones); 4 = do not block any input.");
+                "Bit mask for tests: 1 = do not pose the arms; 2 = aim with the LateUpdate bone lengths (not the drawn ones). (Input blocking: RestraintHub's Debug.Disable.)");
 
             try
             {
@@ -63,7 +67,22 @@ namespace Yoke
             }
             Patches.Apply(new HarmonyLib.Harmony(PluginGuid));
             ClassInjector.RegisterTypeInIl2Cpp<YokeController>();
-            AddComponent<YokeController>();
+            var controller = AddComponent<YokeController>();
+            Entry = new Restraint
+            {
+                Id = "Yoke",
+                RingValue = YokeController.RingItemValue,
+                Label = () => RingLabel.Value,
+                ShortcutSaveKey = Patches.SaveKeyShortcuts,
+                Holds = BodyParts.Neck | BodyParts.Arms,
+                IsWorn = () => YokeController.Instance != null && YokeController.Instance.Machine.Worn,
+                // Like handcuffs: walking and crouching stay, no running, nothing that needs her hands, no pose skills.
+                Blocks = () => RestraintHub.Blocks.Running | RestraintHub.Blocks.HandActions | RestraintHub.Blocks.PoseSkills,
+                OnChosen = () => { var c = YokeController.Instance; if (c != null) c.OnRingChosen(); },
+                Attempt = () => YokeController.Instance == null ? 0f : YokeController.Instance.Machine.Attempt,
+                Controls = "+/- width",
+            };
+            Hub.Register(Entry);
             Logger.LogInfo("[SFM-ACCEPT] load: " + PluginName + " " + PluginVersion + " ready (" + YokeController.Model.Parts.Count + " parts)");
         }
 
