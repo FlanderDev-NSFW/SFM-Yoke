@@ -15,6 +15,7 @@ namespace Yoke
         public struct Body
         {
             public float NeckRadius, UpperArm, Forearm;
+            public float NeckFitRadius;    // the neck the ring is fitted to (NeckRadius only sizes the whole yoke)
         }
 
         /// <summary>Bone lengths (pose independent); the neck's thickness is estimated from the spine (like WallRestraint).</summary>
@@ -38,6 +39,9 @@ namespace Yoke
             b.Forearm = (D(laL, hdL) + D(laR, hdR)) / 2f;
             // Estimate until measured from the mesh (12 % of the spine, as WallRestraint's collar - L3 there).
             b.NeckRadius = 0.12f * D(hips, neck);
+            // The neck itself is much thinner: 7 % of the spine (2.9 cm on the first save) - a ring fitted to the 12 % estimate
+            // stood 2 cm off her neck; screenshots put the neck at about 2.7 cm [observed 2026-10-24].
+            b.NeckFitRadius = 0.07f * D(hips, neck);
             if (b.UpperArm < 0.05f || b.Forearm < 0.05f || b.NeckRadius < 0.01f)
             {
                 problem = "her proportions could not be measured";
@@ -112,17 +116,35 @@ namespace Yoke
 
         public static void ForgetDrawn() => _haveAnimated = _haveOffset = false;
 
-        /// <summary>Both arms' targets for the yoke at <paramref name="frame"/> with the cuffs at <paramref name="cuffL"/> /
-        /// <paramref name="cuffR"/> (model units).</summary>
-        public static (ArmPose L, ArmPose R) Solve(Animator anim, YokeFrame frame, NVector3 cuffL, NVector3 cuffR, Body b, float cuffOnForearm, float cuffHalfHeight)
+        /// <summary>Both arms' targets for <paramref name="model"/> at <paramref name="frame"/> and <paramref name="width"/>, the cuffs
+        /// sized by <paramref name="cuffFit"/> and swivelling up to <paramref name="maxCuffDeg"/> to follow the forearms.</summary>
+        public static (ArmPose L, ArmPose R) Solve(Animator anim, YokeModel model, YokeFrame frame, float width, float cuffFit, float maxCuffDeg,
+                                                   Body b, float cuffOnForearm)
         {
             // The cuff anywhere on the forearm from a little past its middle up to where the ring's top edge meets the wrist.
             const float alongMin = 0.55f;
+            float cuffHalfHeight = (model.Cuffs[1].Top - model.Cuffs[1].Bottom) / 2f * frame.Scale * cuffFit;
             float alongMax = Math.Max(alongMin + 0.05f, 1f - cuffHalfHeight / b.Forearm);
             cuffOnForearm = Math.Min(cuffOnForearm, alongMax);
-            ArmPose Side(HumanBodyBones upper, NVector3 cuff) => YokePose.Arm(N(anim.GetBoneTransform(upper).position), frame.Point(cuff), frame.Up,
-                b.UpperArm, b.Forearm, alongMin, alongMax, cuffOnForearm);
-            return (Side(HumanBodyBones.LeftUpperArm, cuffL), Side(HumanBodyBones.RightUpperArm, cuffR));
+            ArmPose Side(HumanBodyBones upper, int side) => YokePose.ArmInSwivelCuff(frame, tilt => frame.Point(model.CuffCenter(side, width, tilt, cuffFit)),
+                maxCuffDeg, N(anim.GetBoneTransform(upper).position), b.UpperArm, b.Forearm, alongMin, alongMax, cuffOnForearm);
+            // Model side 0 is x < 0, her left.
+            return (Side(HumanBodyBones.LeftUpperArm, 0), Side(HumanBodyBones.RightUpperArm, 1));
+        }
+
+        /// <summary>The neck ring's turn (yoke axes) for her neck as it is drawn now (neck joint -> head joint).</summary>
+        public static System.Numerics.Quaternion DrawnNeckTilt(Animator anim, YokeFrame frame, float maxDeg)
+        {
+            Transform neck = anim.GetBoneTransform(HumanBodyBones.Neck), head = anim.GetBoneTransform(HumanBodyBones.Head);
+            return YokePose.TiltTowards(frame.ModelDirection(N(head.position - neck.position)), maxDeg);
+        }
+
+        /// <summary>The cuff's turn (yoke axes) for the forearm as it is drawn now, so the visible cuff follows the visible arm.</summary>
+        public static System.Numerics.Quaternion DrawnCuffTilt(Animator anim, YokeFrame frame, int side, float maxCuffDeg)
+        {
+            Transform lower = anim.GetBoneTransform(side == 0 ? HumanBodyBones.LeftLowerArm : HumanBodyBones.RightLowerArm);
+            Transform hand = anim.GetBoneTransform(side == 0 ? HumanBodyBones.LeftHand : HumanBodyBones.RightHand);
+            return YokePose.TiltTowards(frame.ModelDirection(N(hand.position - lower.position)), maxCuffDeg);
         }
 
         public static void Apply(Animator anim, ArmPose l, ArmPose r)

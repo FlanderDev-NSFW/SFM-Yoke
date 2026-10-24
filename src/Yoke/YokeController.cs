@@ -32,6 +32,9 @@ namespace Yoke
         /// <summary>Live state for diagnostics: fit, width, both arms' cuff place / forearm tilt / miss.</summary>
         public static string Status = "";
 
+        /// <summary>Diagnostics: how far the neck ring is turned with her neck (degrees, as last drawn).</summary>
+        public static float NeckDeg;
+
         internal static void Fail(string where, Exception e)
         {
             if (_failures++ < 20) Plugin.Logger.LogWarning(where + " failed: " + e);
@@ -164,7 +167,9 @@ namespace Yoke
         private bool Measure(Animator anim, out string problem)
         {
             if (!YokePoser.Measure(anim, out _body, out problem)) return false;
-            _scale = YokePose.Scale(Model, _body.NeckRadius, Plugin.NeckClearanceCm.Value / 100f, Plugin.Size.Value);
+            // The yoke's size from her neck with a fixed allowance; the neck ring itself is fitted on its own (NeckFit), so tightening
+            // it does not move the cuffs.
+            _scale = YokePose.Scale(Model, _body.NeckRadius, SizeClearance, Plugin.Size.Value);
             float width = Width();
             var fit = Fit(anim, width);
             if (Math.Max(fit.L.Miss, fit.R.Miss) > MaxMiss)
@@ -189,22 +194,49 @@ namespace Yoke
         private (ArmPose L, ArmPose R) Fit(Animator anim, float width)
         {
             var frame = YokePoser.Frame(anim, Plugin.NeckRingAt.Value, _scale);
-            var at = Model.AtWidth(width);
-            float half = (Model.Cuffs[1].Top - Model.Cuffs[1].Bottom) / 2f * _scale;
-            return YokePoser.Solve(anim, frame, at.CuffL, at.CuffR, _body, Plugin.CuffOnForearm.Value, half);
+            return YokePoser.Solve(anim, Model, frame, width, CuffFit(), Plugin.CuffMaxAngle.Value, _body, Plugin.CuffOnForearm.Value);
         }
 
         [HideFromIl2Cpp]
         private void Describe((ArmPose L, ArmPose R) fit, float width)
         {
             var at = Model.AtWidth(width);
-            Status = "scale " + F(_scale) + " (neck r " + F(_body.NeckRadius) + ", neck ring hole r " + F(Model.Neck.InnerRadius * _scale) + ", cuff hole r "
-                     + F(Model.Cuffs[1].InnerRadius * _scale) + "), upper arm " + F(_body.UpperArm) + " forearm " + F(_body.Forearm) + "; width " + F(width)
-                     + " (cuffs " + F(at.CuffR.X * _scale * 2f) + " m apart); left: cuff at " + F(fit.L.Along) + " of the forearm, tilt " + F(fit.L.TiltDeg)
-                     + " deg, miss " + F(fit.L.Miss) + "; right: " + F(fit.R.Along) + ", " + F(fit.R.TiltDeg) + " deg, " + F(fit.R.Miss);
+            string Arm(ArmPose a) => "cuff at " + F(a.Along) + " of the forearm, lean " + F(a.LeanDeg) + " deg, cuff turned " + F(CuffDeg(a))
+                                      + " deg, forearm to cuff " + F(a.TiltDeg) + " deg, miss " + F(a.Miss);
+            Status = "scale " + F(_scale) + " (neck r " + F(_body.NeckFitRadius) + ", neck ring hole r " + F(Model.Neck.InnerRadius * _scale * NeckFit()) + ", wrist r "
+                     + F(WristRadius) + ", cuff fit " + F(CuffFit()) + ", cuff hole r " + F(Model.Cuffs[1].InnerRadius * _scale * CuffFit()) + "), upper arm "
+                     + F(_body.UpperArm) + " forearm " + F(_body.Forearm) + "; width " + F(width) + " (cuffs " + F(at.CuffR.X * _scale * 2f)
+                     + " m apart); left: " + Arm(fit.L) + "; right: " + Arm(fit.R);
         }
 
         private static float Width() => Math.Max(Plugin.Width.Value, Model.MinWidth());
+
+        private static float CuffDeg(ArmPose a) => 2f * (float)(Math.Acos(Math.Clamp(Math.Abs(a.CuffTilt.W), 0f, 1f)) * 180.0 / Math.PI);
+
+        // --- wrist fit: the cuffs sized to her wrists -----------------------------------------------------------------------------
+        // Estimated from the forearm (7 %, like the neck from the spine; 10 % left the cuffs visibly loose). Measuring her skin like SpreaderBar's ankle cuffs does
+        // not work here: the baked mesh is off her arms by 10 cm and more (1 cm at the feet, 25 cm at the shoulder) - her
+        // body settings move the bones after the bake can see them [observed 2026-10-24].
+        private const float WristPerForearm = 0.07f;
+
+        /// <summary>The cuffs' scale about their joints: the hole <see cref="Plugin.CuffClearanceCm"/> wider than her wrist,
+        /// never larger than modelled.</summary>
+        private float CuffFit()
+        {
+            if (_scale <= 0f || _body.Forearm <= 0f) return 1f;
+            return LimbGirth.CuffScale(WristRadius, Plugin.CuffClearanceCm.Value / 100f, Model.Cuffs[1].InnerRadius * _scale, 0.3f, 1f);
+        }
+
+        private float WristRadius => WristPerForearm * _body.Forearm;
+
+        private const float SizeClearance = 0.006f; // m: the yoke is sized as if the ring had 0.6 cm room (0.2.0 behaviour), whatever its fit
+
+        /// <summary>The neck ring's scale about its centre: the hole <see cref="Plugin.NeckClearanceCm"/> wider than her neck.</summary>
+        private float NeckFit()
+        {
+            if (_scale <= 0f || _body.NeckFitRadius <= 0f) return 1f;
+            return LimbGirth.CuffScale(_body.NeckFitRadius, Plugin.NeckClearanceCm.Value / 100f, Model.Neck.InnerRadius * _scale, 0.3f, 1.5f);
+        }
 
         /// <summary>
         /// Measured in Update, where the bones have the lengths they were drawn with (the game changes them after LateUpdate;
@@ -284,10 +316,13 @@ namespace Yoke
             }
             if (dir > 0)
             {
-                // No wider once the forearms would lie across the cuffs (unless they already do: the yoke went on wider).
+                // No wider once the forearms would lie across the cuffs - the cuffs at their swivel limit (unless they already
+                // do: the yoke went on wider). Fixed cuffs (CuffMaxAngle 0) allow a 45 deg lean [observed 2026-10-24: 84 deg at
+                // the full reach went through the ring's wall].
                 var before = Fit(anim, now);
+                float limit = Plugin.CuffMaxAngle.Value > 0f ? YokePose.MaxTiltDeg : 45f;
                 float tilt = Math.Max(fit.L.TiltDeg, fit.R.TiltDeg), tiltBefore = Math.Max(before.L.TiltDeg, before.R.TiltDeg);
-                if (tilt > Math.Max(YokePose.MaxTiltDeg, tiltBefore))
+                if (tilt > Math.Max(limit, tiltBefore))
                 {
                     Say("Any wider and her wrists would not fit the cuffs.");
                     return;
@@ -352,7 +387,12 @@ namespace Yoke
                 var anim = player == null || player.Pca == null ? null : player.Pca.Animator;
                 if (anim == null) return;
                 YokePoser.RecordDrawn(anim);
-                _rig.Place(YokePoser.Frame(anim, Plugin.NeckRingAt.Value, _scale), Width());
+                // The cuffs turn with the forearms as drawn, so the visible cuff follows the visible arm.
+                var frame = YokePoser.Frame(anim, Plugin.NeckRingAt.Value, _scale);
+                float maxCuff = Plugin.CuffMaxAngle.Value;
+                var neckTilt = YokePoser.DrawnNeckTilt(anim, frame, Plugin.NeckRingMaxAngle.Value);
+                NeckDeg = 2f * (float)(Math.Acos(Math.Clamp(Math.Abs(neckTilt.W), 0f, 1f)) * 180.0 / Math.PI);
+                _rig.Place(frame, Width(), NeckFit(), CuffFit(), neckTilt, YokePoser.DrawnCuffTilt(anim, frame, 0, maxCuff), YokePoser.DrawnCuffTilt(anim, frame, 1, maxCuff));
             }
             catch (Exception e) { Fail("placing the yoke", e); }
         }

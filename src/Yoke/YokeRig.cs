@@ -57,22 +57,36 @@ namespace Yoke
             _root.SetActive(false);
         }
 
-        /// <summary>Put the yoke on <paramref name="frame"/> at <paramref name="width"/> (see <see cref="YokeModel.AtWidth"/>).</summary>
-        public void Place(YokeFrame frame, float width)
+        /// <summary>Put the yoke on <paramref name="frame"/> at <paramref name="width"/> (see <see cref="YokeModel.AtWidth"/>), the
+        /// cuffs scaled by <paramref name="cuffFit"/> and turned by <paramref name="tiltL"/> / <paramref name="tiltR"/> (yoke axes)
+        /// about their joints (<see cref="YokeModel.CuffJoint"/>).</summary>
+        public void Place(YokeFrame frame, float width, float neckFit, float cuffFit, System.Numerics.Quaternion neckTilt,
+                          System.Numerics.Quaternion tiltL, System.Numerics.Quaternion tiltR)
         {
             if (_root == null) return;
-            var q = frame.Rotation();
-            var rot = new Quaternion(q.X, q.Y, q.Z, q.W);
-            var at = _model.AtWidth(width);
+            var rot = U(frame.Rotation());
             float s = frame.Scale;
-            Set(PartKind.Neck, 2, frame.Point(_model.Neck.Center), rot, Vector3.one * s);
-            Set(PartKind.Cuff, 0, frame.Point(at.CuffL), rot, Vector3.one * s);
-            Set(PartKind.Cuff, 1, frame.Point(at.CuffR), rot, Vector3.one * s);
-            // Rods stretch along the bar (model x) from their end in the neck ring.
-            var rodScale = new Vector3(s * at.RodStretch, s, s);
-            Set(PartKind.Rod, 0, frame.Point(_model.Anchor(PartKind.Rod, 0)), rot, rodScale);
-            Set(PartKind.Rod, 1, frame.Point(_model.Anchor(PartKind.Rod, 1)), rot, rodScale);
+            // The neck ring is sized to her neck and turns with it, both about its centre.
+            Set(PartKind.Neck, 2, frame.Point(_model.Neck.Center), rot * U(neckTilt), Vector3.one * (s * neckFit));
+            // The cuff group's mesh hangs from the cuff's centre: put that centre where the turn about the joint takes it.
+            Set(PartKind.Cuff, 0, frame.Point(_model.CuffCenter(0, width, tiltL, cuffFit)), rot * U(tiltL), Vector3.one * (s * cuffFit));
+            Set(PartKind.Cuff, 1, frame.Point(_model.CuffCenter(1, width, tiltR, cuffFit)), rot * U(tiltR), Vector3.one * (s * cuffFit));
+            // Rods: from the (turned) neck ring's knob to the cuff's joint - aimed along that line and stretched to its length.
+            PlaceRod(frame, rot, 0, width, neckTilt, neckFit);
+            PlaceRod(frame, rot, 1, width, neckTilt, neckFit);
         }
+
+        private void PlaceRod(YokeFrame frame, Quaternion rot, int side, float width, System.Numerics.Quaternion neckTilt, float neckFit)
+        {
+            var (knob, joint) = _model.RodEnds(side, width, neckTilt, neckFit);
+            var rod = _model.Rods[side];
+            NVector3 along = new NVector3(side == 1 ? 1f : -1f, 0f, 0f); // the rod's mesh runs from its anchor outwards
+            NVector3 span = joint - knob;
+            var aim = YokePose.Turn(along, span);
+            Set(PartKind.Rod, side, frame.Point(knob), rot * U(aim), new Vector3(frame.Scale * span.Length() / (rod.Outer - rod.Inner), frame.Scale, frame.Scale));
+        }
+
+        private static Quaternion U(System.Numerics.Quaternion q) => new Quaternion(q.X, q.Y, q.Z, q.W);
 
         private void Set(PartKind kind, int side, NVector3 at, Quaternion rot, Vector3 scale)
         {

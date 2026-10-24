@@ -16,7 +16,7 @@ namespace Yoke
     {
         public const string PluginGuid = "com.local.yoke";
         public const string PluginName = "Yoke";
-        public const string PluginVersion = "0.2.0";
+        public const string PluginVersion = "0.3.0";
         private const string ModelResource = "Yoke.assets.yoke.ykm";
 
         internal static ManualLogSource Logger;
@@ -24,7 +24,7 @@ namespace Yoke
         internal static Restraint Entry;
         public static ConfigEntry<string> RingLabel;
         public static ConfigEntry<float> AttemptSeconds, SuccessChance;
-        public static ConfigEntry<float> Width, StepPercent, Size, NeckClearanceCm, MetalShade, NeckRingAt, CuffOnForearm;
+        public static ConfigEntry<float> Width, StepPercent, Size, NeckClearanceCm, CuffClearanceCm, CuffMaxAngle, NeckRingMaxAngle, MetalShade, NeckRingAt, CuffOnForearm;
         public static ConfigEntry<int> DebugDisable;
 
         public override void Load()
@@ -38,14 +38,25 @@ namespace Yoke
                 new AcceptableValueRange<float>(0.01f, 1f)));
             Width = Config.Bind("Yoke", "Width", 1f, new ConfigDescription(
                 "Distance of the wrist cuffs from the neck ring, as a factor of the model (1 = as modelled; less = narrower, her " +
-                "forearms stand more upright). + / - while it is on change it and store the result here.", new AcceptableValueRange<float>(0.35f, 1.6f)));
+                "forearms stand more upright; wider until her arms are straight or the cuffs reach CuffMaxAngle). + / - while it is on change it and store the result here.", new AcceptableValueRange<float>(0.35f, 1.6f)));
             StepPercent = Config.Bind("Yoke", "StepPercent", 2f, new ConfigDescription(
                 "How much one press of + / - changes the width (percent of the model's width).", new AcceptableValueRange<float>(0.5f, 20f)));
             Size = Config.Bind("Model", "Size", 1f, new ConfigDescription(
-                "Size of the whole yoke relative to the fit around her neck (1 = the neck ring fits with NeckClearanceCm to spare).",
+                "Size of the yoke (rods, cuffs' spacing) relative to her neck (1 = as fitted); the rings are sized to her neck and wrists.",
                 new AcceptableValueRange<float>(0.7f, 2f)));
-            NeckClearanceCm = Config.Bind("Model", "NeckClearanceCm", 0.6f, new ConfigDescription(
-                "Room between her neck and the neck ring (cm). The neck is estimated from her spine length.", new AcceptableValueRange<float>(0f, 5f)));
+            NeckClearanceCm = Config.Bind("Model", "NeckClearanceCm", 0.4f, new ConfigDescription(
+                "Room between her neck and the neck ring (cm). The neck is estimated from her spine length (7 %); lower it (down to -1) " +
+                "for a tighter ring.", new AcceptableValueRange<float>(-1f, 5f)));
+            CuffClearanceCm = Config.Bind("Model", "CuffClearanceCm", 0.5f, new ConfigDescription(
+                "Room between her wrist and the wrist cuffs (cm); the wrist is estimated from her forearm (7 % of its length). Raise it " +
+                "for sleeves or a thicker wrist, lower it (down to -1) for tighter cuffs; large values leave the cuffs as modelled.",
+                new AcceptableValueRange<float>(-1f, 5f)));
+            CuffMaxAngle = Config.Bind("Model", "CuffMaxAngle", 70f, new ConfigDescription(
+                "How far the wrist cuffs swivel on their rods to follow the forearms (degrees; 0 = fixed upright as modelled). The " +
+                "yoke gets no wider once a cuff is at this limit.", new AcceptableValueRange<float>(0f, 80f)));
+            NeckRingMaxAngle = Config.Bind("Model", "NeckRingMaxAngle", 45f, new ConfigDescription(
+                "How far the neck ring turns to follow her neck (degrees; 0 = fixed to the shoulders). The rods follow its knobs.",
+                new AcceptableValueRange<float>(0f, 80f)));
             MetalShade = Config.Bind("Model", "MetalShade", 0.3f, new ConfigDescription(
                 "Brightness of the metal (0 = black, 1 = white).", new AcceptableValueRange<float>(0f, 1f)));
             NeckRingAt = Config.Bind("Pose", "NeckRingAt", 0.25f, new ConfigDescription(

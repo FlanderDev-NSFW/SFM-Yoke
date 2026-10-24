@@ -105,8 +105,8 @@ namespace Yoke.Logic
 
         /// <summary>
         /// The yoke at a width (1 = as modelled): the cuffs move along the bar to <paramref name="width"/> times their modelled
-        /// distance, the rods stretch between the neck ring's knobs and the cuffs' brackets. Returns where each cuff's centre is
-        /// and the rods' stretch along the bar.
+        /// distance, the rods stretch from the neck ring's knobs to the cuffs' joints (<see cref="CuffJoint"/>). Returns where
+        /// each cuff's centre is (not turned, as modelled in size) and the rods' stretch along the bar.
         /// </summary>
         public (Vector3 CuffL, Vector3 CuffR, float RodStretch) AtWidth(float width)
         {
@@ -116,18 +116,44 @@ namespace Yoke.Logic
                 return new Vector3(c.X * width, c.Y, c.Z);
             }
             var rod = Rods[1];
-            float extra = (width - 1f) * Math.Abs(Cuffs[1].Center.X);
-            return (Moved(0), Moved(1), (rod.Outer - rod.Inner + extra) / (rod.Outer - rod.Inner));
+            return (Moved(0), Moved(1), (Math.Abs(CuffJoint(1, width).X) - rod.Inner) / (rod.Outer - rod.Inner));
+        }
+
+        /// <summary>
+        /// The cuff's swivel (model units): the middle of the ring's wall where the rod enters it, on the rod's axis. The cuff
+        /// turns about it to follow the forearm and is sized about it to the wrist, so it never leaves the rod.
+        /// </summary>
+        public Vector3 CuffJoint(int side, float width)
+        {
+            var c = Cuffs[side];
+            float mid = (c.InnerRadius + c.OuterRadius) / 2f;
+            return new Vector3(c.Center.X * width - Math.Sign(c.Center.X) * mid, Rods[side].Y, Rods[side].Z);
+        }
+
+        /// <summary>The rod's two ends (model units): the neck ring's knob, with the ring scaled by <paramref name="neckFit"/> and
+        /// turned by <paramref name="neckTilt"/> (yoke axes) about its centre, and the cuff's joint. The rod is aimed and stretched
+        /// between them.</summary>
+        public (Vector3 Knob, Vector3 Joint) RodEnds(int side, float width, Quaternion neckTilt, float neckFit = 1f) =>
+            (Neck.Center + Vector3.Transform((Anchor(PartKind.Rod, side) - Neck.Center) * neckFit, neckTilt), CuffJoint(side, width));
+
+        /// <summary>The cuff's centre with the cuff turned by <paramref name="tilt"/> (yoke axes) and scaled by <paramref name="fit"/>
+        /// about its joint (<see cref="CuffJoint"/>).</summary>
+        public Vector3 CuffCenter(int side, float width, Quaternion tilt, float fit)
+        {
+            Vector3 joint = CuffJoint(side, width);
+            var c = Cuffs[side].Center;
+            return joint + Vector3.Transform((new Vector3(c.X * width, c.Y, c.Z) - joint) * fit, tilt);
         }
 
         /// <summary>Narrowest width (factor) that leaves the rods <paramref name="minRod"/> of their length showing and keeps a gap
         /// between the cuffs and the neck ring.</summary>
         public float MinWidth(float minRod = 0.15f)
         {
-            float cx = Math.Abs(Cuffs[1].Center.X);
+            var c = Cuffs[1];
+            float cx = Math.Abs(c.Center.X);
             float rodLength = Rods[1].Outer - Rods[1].Inner;
-            float byRod = 1f - rodLength * (1f - minRod) / cx;
-            float byGap = (Neck.OuterRadius + Cuffs[1].OuterRadius + 0.1f) / cx;
+            float byRod = (Rods[1].Inner + rodLength * minRod + (c.InnerRadius + c.OuterRadius) / 2f) / cx;
+            float byGap = (Neck.OuterRadius + c.OuterRadius + 0.1f) / cx;
             return Math.Max(byRod, byGap);
         }
     }
@@ -154,6 +180,9 @@ namespace Yoke.Logic
         public Vector3 Point(Vector3 model) => Origin + Direction(model) * Scale;
 
         public Vector3 Direction(Vector3 model) => Right * model.X + Side * model.Y + Up * model.Z;
+
+        /// <summary>A world direction in yoke axes (inverse of <see cref="Direction"/>).</summary>
+        public Vector3 ModelDirection(Vector3 world) => new Vector3(Vector3.Dot(world, Right), Vector3.Dot(world, Side), Vector3.Dot(world, Up));
 
         /// <summary>World -> yoke coordinates (inverse of <see cref="Point"/>).</summary>
         public Vector3 ToModel(Vector3 world)

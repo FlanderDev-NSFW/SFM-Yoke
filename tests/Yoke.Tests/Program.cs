@@ -21,7 +21,7 @@ namespace Yoke.Tests
         private static int Main()
         {
             string modelPath = Path.Combine(AppContext.BaseDirectory, "yoke.ykm");
-            if (File.Exists(modelPath)) { ModelTests(modelPath); FitTests(modelPath); }
+            if (File.Exists(modelPath)) { ModelTests(modelPath); FitTests(modelPath); SwivelTests(modelPath); }
             else Console.WriteLine("  SKIP  model tests (" + modelPath + " missing: export it with mods/Yoke/tools/export_model.py)");
             FormatErrorTests();
             FrameTests();
@@ -56,12 +56,39 @@ namespace Yoke.Tests
             Check(m.Anchor(PartKind.Rod, 0).X < 0 && Near(m.Anchor(PartKind.Rod, 1).X, m.Rods[1].Inner), "model: rod anchors at the neck ring's knobs");
 
             var w1 = m.AtWidth(1f);
-            Check(Near(w1.CuffR, m.Cuffs[1].Center) && Near(w1.RodStretch, 1f), "width 1: as modelled");
-            var w2 = m.AtWidth(0.8f);
             float rodLen = m.Rods[1].Outer - m.Rods[1].Inner;
+            Check(Near(w1.CuffR, m.Cuffs[1].Center) && w1.RodStretch > 0.95f && w1.RodStretch < 1f, "width 1: cuffs as modelled, rods end a little short");
+            var j1 = m.CuffJoint(1, 1f);
+            Check(j1.X > m.Cuffs[1].Center.X - m.Cuffs[1].OuterRadius && j1.X < m.Cuffs[1].Center.X - m.Cuffs[1].InnerRadius,
+                  "joint: inside the cuff's wall (" + j1.X.ToString("0.000") + ")");
+            Check(Near(m.CuffJoint(0, 1f), new Vector3(-j1.X, j1.Y, j1.Z), 1e-3f), "joint: mirrors");
+            Check(Near(m.Rods[1].Inner + rodLen * w1.RodStretch, j1.X), "width 1: the rod ends at the joint");
+            var w2 = m.AtWidth(0.8f);
             Check(Near(w2.CuffR.X, 0.8f * m.Cuffs[1].Center.X) && Near(w2.CuffL.X, 0.8f * m.Cuffs[0].Center.X), "width 0.8: cuffs moved in");
-            Check(Near(m.Rods[1].Inner + rodLen * w2.RodStretch, m.Rods[1].Outer + (w2.CuffR.X - m.Cuffs[1].Center.X), 1e-4f),
-                  "width 0.8: the rod still ends in the cuff's bracket");
+            Check(Near(m.Rods[1].Inner + rodLen * w2.RodStretch, m.CuffJoint(1, 0.8f).X), "width 0.8: the rod still ends at the joint");
+
+            // The neck ring turned: the rods run from its turned knobs to the cuffs' joints.
+            var flatRod = m.RodEnds(1, 0.8f, Quaternion.Identity);
+            Check(Near(flatRod.Knob, m.Anchor(PartKind.Rod, 1)) && Near(flatRod.Joint, m.CuffJoint(1, 0.8f)), "rod ends: neck ring not turned = knob and joint");
+            var nod = Quaternion.CreateFromAxisAngle(Vector3.UnitX, 0.5f);
+            var nodRod = m.RodEnds(1, 0.8f, nod);
+            Check(Near(nodRod.Knob, m.Anchor(PartKind.Rod, 1), 2e-2f) && Near(nodRod.Joint, flatRod.Joint), "rod ends: a nod turns the knob about the bar, the joint stays");
+            var lean = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.4f);
+            var leanRod = m.RodEnds(1, 0.8f, lean);
+            Check(leanRod.Knob.Z < -0.1f && Near(leanRod.Knob.Length(), m.Anchor(PartKind.Rod, 1).Length(), 1e-4f), "rod ends: a sideways lean lowers the knob, same distance from the centre");
+            var tight = m.RodEnds(1, 0.8f, Quaternion.Identity, 0.8f);
+            Check(Near(tight.Knob.X, 0.8f * m.Anchor(PartKind.Rod, 1).X) && Near(tight.Joint, flatRod.Joint), "rod ends: a tighter neck ring pulls the knob in, the joint stays");
+            var aim = YokePose.Turn(Vector3.UnitX, leanRod.Joint - leanRod.Knob);
+            Check(Near(Vector3.Transform(Vector3.UnitX, aim), Vector3.Normalize(leanRod.Joint - leanRod.Knob)), "rod: aimed from the knob at the joint");
+            Check(Near(Vector3.Transform(-Vector3.UnitX, YokePose.Turn(-Vector3.UnitX, new Vector3(-1, 0, 0.2f))), Vector3.Normalize(new Vector3(-1, 0, 0.2f))), "rod: left side aimed");
+            Check(YokePose.Turn(Vector3.UnitX, Vector3.UnitX) == Quaternion.Identity, "turn: none needed");
+
+            // Swivel: turned and sized about the joint.
+            Check(Near(m.CuffCenter(1, 0.8f, Quaternion.Identity, 1f), w2.CuffR), "cuff centre: not turned, full size = moved centre");
+            var j2 = m.CuffJoint(1, 0.8f);
+            var tilt = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 0.6f);
+            Check(Near(Vector3.Distance(m.CuffCenter(1, 0.8f, tilt, 1f), j2), Vector3.Distance(w2.CuffR, j2)), "cuff centre: turning keeps its distance to the joint");
+            Check(Near(Vector3.Distance(m.CuffCenter(1, 0.8f, tilt, 0.5f), j2), 0.5f * Vector3.Distance(w2.CuffR, j2)), "cuff centre: sizing scales about the joint");
             float min = m.MinWidth();
             Check(min > 0.2f && min < 0.6f, "min width " + min);
             var wm = m.AtWidth(min);
@@ -134,8 +161,43 @@ namespace Yoke.Tests
             Check(Near(Vector3.Transform(Vector3.UnitX, q), f.Right) && Near(Vector3.Transform(Vector3.UnitZ, q), f.Up), "frame: rotation maps the axes");
         }
 
+        private static void SwivelTests(string path)
+        {
+            var m = Load(path);
+            var b = Adult;
+            float s = YokePose.Scale(m, b.NeckRadius, 0.005f, 1f);
+            var f = new YokeFrame(Vector3.Zero, Vector3.UnitX, Vector3.UnitZ, s);
+            Vector3 shoulder = new Vector3(b.ShoulderHalf, 0, -b.ShoulderDrop);
+            foreach (float width in new[] { 1f, 1.15f })
+            {
+                string w = "swivel width " + width + ": ";
+                const float fit = 0.6f;
+                var arm = YokePose.ArmInSwivelCuff(f, t => f.Point(m.CuffCenter(1, width, t, fit)), 70f, shoulder, b.UpperArm, b.Forearm, 0.55f, 0.95f, 0.85f);
+                Vector3 cuff = f.Point(m.CuffCenter(1, width, arm.CuffTilt, fit));
+                Vector3 fore = Vector3.Normalize(arm.Hand - arm.Elbow);
+                Check(arm.Miss < 1e-3f, w + "reached (lean " + arm.LeanDeg.ToString("0") + " deg)");
+                Check(Near(arm.Elbow + fore * (arm.Along * b.Forearm), cuff, 1e-3f), w + "forearm through the turned cuff's centre");
+                Check(arm.TiltDeg < 0.5f, w + "cuff follows the forearm (" + arm.TiltDeg.ToString("0.00") + " deg off)");
+                Vector3 axis = Vector3.Transform(Vector3.UnitZ, arm.CuffTilt);
+                Check(axis.X > 0.2f, w + "cuff leans out with the forearm");
+            }
+            // Fixed cuffs: as before (upright, the forearm leans through it).
+            var fixedArm = YokePose.ArmInSwivelCuff(f, t => f.Point(m.CuffCenter(1, 1f, t, 1f)), 0f, shoulder, b.UpperArm, b.Forearm, 0.55f, 0.95f, 0.85f);
+            Check(fixedArm.CuffTilt == Quaternion.Identity && Near(fixedArm.TiltDeg, fixedArm.LeanDeg, 1e-3f), "swivel 0: cuff stays upright");
+            // At the limit the forearm leans past the cuff.
+            var limited = YokePose.ArmInSwivelCuff(f, t => f.Point(m.CuffCenter(1, 1f, t, 1f)), 10f, shoulder, b.UpperArm, b.Forearm, 0.55f, 0.95f, 0.85f);
+            Check(limited.TiltDeg > 5f, "swivel limited to 10 deg: forearm " + limited.TiltDeg.ToString("0") + " deg off the cuff");
+        }
+
         private static void ArmTests()
         {
+            var up = YokePose.TiltTowards(Vector3.UnitZ, 70f);
+            Check(up == Quaternion.Identity, "cuff tilt: upright forearm -> not turned");
+            var leanTilt = YokePose.TiltTowards(new Vector3(1, 0, 1), 70f);
+            Check(Near(Vector3.Transform(Vector3.UnitZ, leanTilt), Vector3.Normalize(new Vector3(1, 0, 1))), "cuff tilt: axis onto the forearm");
+            var flat = YokePose.TiltTowards(new Vector3(1, 0, 0.1f), 30f);
+            Check(Near(Vector3.Dot(Vector3.Transform(Vector3.UnitZ, flat), Vector3.UnitZ), (float)Math.Cos(Math.PI / 6), 1e-4f), "cuff tilt: limited");
+
             // Directly under the cuff: the forearm stands upright.
             var a = YokePose.Arm(Vector3.Zero, new Vector3(0.2f, 0, 0.0f), Vector3.UnitZ, 0.3f, 0.25f, 0.5f, 0.95f, 0.85f);
             Check(a.Miss < 1e-3f && a.TiltDeg < 5f, "arm: cuff in reach of an upright forearm -> (nearly) upright (" + a.TiltDeg + ")");
