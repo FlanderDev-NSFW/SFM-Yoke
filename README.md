@@ -110,4 +110,4 @@ arm misses its elbow); `game get Yoke.YokeController::NeckDeg` (the neck ring's 
 - The wrist size is an estimate (7 % of the forearm); sleeves are not measured (`Model.CuffClearanceCm`).
 - The neck ring and the rods meet at a ball joint the model does not show; turned far, the knobs leave the bar's straight line.
 - The hands keep the animation's angle at the wrist (they bend inward a little).
-- The neck size is an estimate (7 % of the spine for the ring; the yoke's size still uses 12 %, as WallRestraint's collar).
+- The neck size is an estimate (7 % of the spine for the ring; the yoke's size still uses 12 %, so the cuffs' spacing did not change).
