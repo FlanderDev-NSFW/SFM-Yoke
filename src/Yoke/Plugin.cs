@@ -11,12 +11,12 @@ using Yoke.Logic;
 namespace Yoke
 {
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-    [BepInDependency(Hub.Guid, BepInDependency.DependencyFlags.HardDependency)]
+    [BepInDependency(Hub.Guid, "0.3.0")] // OnSave / OnLoad / OnNewGame
     public sealed class Plugin : BasePlugin
     {
         public const string PluginGuid = "com.local.yoke";
         public const string PluginName = "Yoke";
-        public const string PluginVersion = "0.3.0";
+        public const string PluginVersion = "0.3.1";
         private const string ModelResource = "Yoke.assets.yoke.ykm";
 
         internal static ManualLogSource Logger;
@@ -76,7 +76,6 @@ namespace Yoke
                 Logger.LogError("Yoke model could not be loaded, the mod is disabled: " + e.Message);
                 return;
             }
-            Patches.Apply(new HarmonyLib.Harmony(PluginGuid));
             ClassInjector.RegisterTypeInIl2Cpp<YokeController>();
             var controller = AddComponent<YokeController>();
             Entry = new Restraint
@@ -85,6 +84,9 @@ namespace Yoke
                 RingValue = YokeController.RingItemValue,
                 Label = () => RingLabel.Value,
                 ShortcutSaveKey = Patches.SaveKeyShortcuts,
+                OnSave = Patches.Save,
+                OnLoad = Patches.Load,
+                OnNewGame = () => YokeController.Instance?.OnNewGame(),
                 Holds = BodyParts.Neck | BodyParts.Arms,
                 IsWorn = () => YokeController.Instance != null && YokeController.Instance.Machine.Worn,
                 // Like handcuffs: walking and crouching stay, no running, nothing that needs her hands, no pose skills.
