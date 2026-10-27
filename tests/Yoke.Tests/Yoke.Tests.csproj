@@ -9,9 +9,9 @@
     <RootNamespace>Yoke.Tests</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="..\..\mods\Yoke\Logic\**\*.cs" Link="Logic\%(RecursiveDir)%(Filename)%(Extension)" />
-    <Compile Include="..\..\src\SfmKit\Pure\**\*.cs" Link="SfmKit.Pure\%(RecursiveDir)%(Filename)%(Extension)" />
-    <None Include="..\..\mods\Yoke\assets\yoke.ykm" Link="yoke.ykm" CopyToOutputDirectory="PreserveNewest"
-          Condition="Exists('..\..\mods\Yoke\assets\yoke.ykm')" />
+    <Compile Include="..\..\src\Yoke\Logic\**\*.cs" Link="Logic\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\lib\SfmKit\Pure\**\*.cs" Link="SfmKit.Pure\%(RecursiveDir)%(Filename)%(Extension)" />
+    <None Include="..\..\src\Yoke\assets\yoke.ykm" Link="yoke.ykm" CopyToOutputDirectory="PreserveNewest"
+          Condition="Exists('..\..\src\Yoke\assets\yoke.ykm')" />
   </ItemGroup>
 </Project>
