@@ -11,12 +11,12 @@ using Yoke.Logic;
 namespace Yoke
 {
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-    [BepInDependency(Hub.Guid, "0.3.0")] // OnSave / OnLoad / OnNewGame
+    [BepInDependency(Hub.Guid, "1.0.0")] // OnSave / OnLoad / OnNewGame
     public sealed class Plugin : BasePlugin
     {
-        public const string PluginGuid = "com.local.yoke";
+        public const string PluginGuid = "FlanderDev.SFM.Yoke";
         public const string PluginName = "Yoke";
-        public const string PluginVersion = "0.3.1";
+        public const string PluginVersion = "1.0.0";
         private const string ModelResource = "Yoke.assets.yoke.ykm";
 
         internal static ManualLogSource Logger;
