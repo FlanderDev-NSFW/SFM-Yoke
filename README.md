@@ -3,6 +3,8 @@
 A neck-and-wrist yoke for **Secret Flasher Manaka**: a metal bar across her shoulders with a ring around her neck and a cuff
 at each end. Her hands are held up beside her head, and she can still walk.
 
+Model: ["BDSM Yoke"](https://smutba.se/project/29b8fcfb-1a89-406b-910b-51a8af653906/) by Kryiat ([CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/)).
+
 ## Requirements
 - Secret Flasher Manaka (tested with v1.1.3)
 - BepInEx 6 for IL2CPP (tested with build 738)
@@ -38,7 +40,7 @@ clothes, pose skills ...). The yoke is sized to her body.
 - At the default width the forearms lean outwards; `-` stands them up.
 - Wrist and neck sizes are estimated from her body, so sleeves can poke through the cuffs.
 
-Single-player / offline only. Code: MIT licence (`LICENSE.txt`). Model: "BDSM Yoke" by Kryiat, CC BY-NC-ND 4.0 (smutba.se; details in `LICENSE-MODELS.txt`).
+Single-player / offline only. Code: MIT licence (`LICENSE.txt`). Model: ["BDSM Yoke"](https://smutba.se/project/29b8fcfb-1a89-406b-910b-51a8af653906/) by Kryiat, CC BY-NC-ND 4.0 (smutba.se; details in `LICENSE-MODELS.txt`).
 
 ## Building from source
 - .NET SDK 8, and a copy of the game with BepInEx 6 IL2CPP started once: copy `Directory.Build.local.props.example` to
