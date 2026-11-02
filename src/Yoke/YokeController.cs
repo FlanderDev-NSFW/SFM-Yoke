@@ -86,9 +86,18 @@ namespace Yoke
         [HideFromIl2Cpp]
         internal void OnRingChosen()
         {
+            string why = PutOn();
+            if (why != null) GameUi.Message("Can't put the yoke on: " + why);
+        }
+
+        /// <summary>Put it on (the ring entry, or a mission through RestraintHub): null when it is closing, else why not.</summary>
+        [HideFromIl2Cpp]
+        internal string PutOn()
+        {
             string result = LockHere();
-            if (Machine.Worn) GameUi.PlaySe(InGameSoundManager.SeType.CommonEquip);
-            else GameUi.Message("Can't put the yoke on: " + (result.StartsWith("refused: ") ? result.Substring(9) : result));
+            if (!Machine.Worn) return result.StartsWith("refused: ") ? result.Substring(9) : result;
+            GameUi.PlaySe(InGameSoundManager.SeType.CommonEquip);
+            return null;
         }
 
         // --- save identity ----------------------------------------------------------------------------------------------------
@@ -149,6 +158,7 @@ namespace Yoke
             bool was = c.Machine.Worn;
             c.Machine.Reset();
             c._measured = false;
+            MissionWidth = float.NaN; // a mission's width ends with the yoke
             YokePoser.ForgetDrawn();
             c._rig?.SetVisible(false);
             if (was) Plugin.Logger.LogInfo("[SFM-ACCEPT] release: yoke off");
@@ -202,7 +212,7 @@ namespace Yoke
                      + " m apart); left: " + Arm(fit.L) + "; right: " + Arm(fit.R);
         }
 
-        private static float Width() => Math.Max(Plugin.Width.Value, Model.MinWidth());
+        internal static float Width() => Math.Max(float.IsNaN(MissionWidth) ? Plugin.Width.Value : MissionWidth, Model.MinWidth());
 
         private static float CuffDeg(ArmPose a) => 2f * (float)(Math.Acos(Math.Clamp(Math.Abs(a.CuffTilt.W), 0f, 1f)) * 180.0 / Math.PI);
 
@@ -292,21 +302,29 @@ namespace Yoke
             // + / - reach the yoke only while it is the selected restraint (the hub routes them, outside menus).
             int dir = Plugin.Entry.TakeStep();
             if (dir == 0 || Machine.State != LockState.Locked || !_measured) return;
+            string why = SetWidth(Width() + dir * Plugin.StepPercent.Value / 100f, true);
+            if (why != null) Say(why);
+        }
+
+        /// <summary>A width set by a mission (RestraintHub's RtHub_Set "width"), used instead of the config until + / - or the yoke
+        /// comes off; NaN = none.</summary>
+        internal static float MissionWidth = float.NaN;
+
+        /// <summary>Change the width (fraction of the model's; clamped to what the yoke allows): null when done, else why not.
+        /// <paramref name="fromKeys"/>: the player's + / -, remembered in the config; else (a mission) only until the yoke comes off.</summary>
+        [HideFromIl2Cpp]
+        internal string SetWidth(float want, bool fromKeys)
+        {
+            if (Machine.State != LockState.Locked || !_measured) return "the yoke is not closed yet";
             var anim = PlayerController.Instance.Pca.Animator;
             float now = Width();
             float min = Model.MinWidth(), max = 1.6f;
-            float want = Math.Min(Math.Max(now + dir * Plugin.StepPercent.Value / 100f, min), max);
+            int dir = Math.Sign(want - now);
+            want = Math.Min(Math.Max(want, min), max);
             if (Math.Abs(want - now) < 1e-4f)
-            {
-                Say(dir > 0 ? "The yoke is as wide as it goes." : "The yoke is as narrow as it goes.");
-                return;
-            }
+                return dir == 0 ? null : dir > 0 ? "The yoke is as wide as it goes." : "The yoke is as narrow as it goes.";
             var fit = Fit(anim, want);
-            if (dir > 0 && Math.Max(fit.L.Miss, fit.R.Miss) > MaxMiss)
-            {
-                Say("Her arms can't reach any further.");
-                return;
-            }
+            if (dir > 0 && Math.Max(fit.L.Miss, fit.R.Miss) > MaxMiss) return "Her arms can't reach any further.";
             if (dir > 0)
             {
                 // No wider once the forearms would lie across the cuffs - the cuffs at their swivel limit (unless they already
@@ -315,15 +333,17 @@ namespace Yoke
                 var before = Fit(anim, now);
                 float limit = Plugin.CuffMaxAngle.Value > 0f ? YokePose.MaxTiltDeg : 45f;
                 float tilt = Math.Max(fit.L.TiltDeg, fit.R.TiltDeg), tiltBefore = Math.Max(before.L.TiltDeg, before.R.TiltDeg);
-                if (tilt > Math.Max(limit, tiltBefore))
-                {
-                    Say("Any wider and her wrists would not fit the cuffs.");
-                    return;
-                }
+                if (tilt > Math.Max(limit, tiltBefore)) return "Any wider and her wrists would not fit the cuffs.";
             }
-            Plugin.Width.Value = want; // applied from the next frame and remembered (saved to the config)
+            if (fromKeys)
+            {
+                Plugin.Width.Value = want; // applied from the next frame and remembered (saved to the config)
+                MissionWidth = float.NaN;
+            }
+            else MissionWidth = want;
             Describe(fit, want);
-            Plugin.Logger.LogInfo("[SFM-ACCEPT] width: " + Status);
+            Plugin.Logger.LogInfo("[SFM-ACCEPT] width: " + Status + (fromKeys ? "" : " (mission)"));
+            return null;
         }
 
         // --- the pose (LateUpdate) and the model (onPreCull) -------------------------------------------------------------------

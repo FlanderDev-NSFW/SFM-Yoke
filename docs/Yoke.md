@@ -110,6 +110,7 @@ arm misses its elbow); `game get Yoke.YokeController::NeckDeg` (the neck ring's 
   ring now fits 7 % of the spine (2.9 cm) + 0.4 cm; wrist room 0.5 and 0.7 showed no clipping, 0.5 taken. Final: neck ring hole
   3.3 cm, cuff hole 2.3 cm, yoke scale unchanged (0.145); screenshots front (mirror) and back: snug, no skin through the rings.
   Width put back to the player's 1.03; the clearances set to the new defaults (the old ones were this version's own).
+- L3 1.1.0 (2026-11-02, with RestraintHub 1.1.0 and the test missions - details in RestraintHub's `docs/RestraintHub.md`, L3 1.1.0): put on and locked by a mission (no struggling: F held 8 s, still on; allowed again: struggled free), setting `width` 115.2 -> 120 % (not stored in the config), taken off by its timer, by the end of the mission's thread and by the example mission's timer. `+` / `-` go through the same `SetWidth`.
 
 ## Known limits / next
 - At the model's width the forearms lean ~40 deg out (the cuffs are wider than her bent arms reach upright); `-` to ~0.85 stands

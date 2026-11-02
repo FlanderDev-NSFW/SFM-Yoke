@@ -11,12 +11,12 @@ using Yoke.Logic;
 namespace Yoke
 {
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-    [BepInDependency(Hub.Guid, "1.0.0")] // OnSave / OnLoad / OnNewGame
+    [BepInDependency(Hub.Guid, "^1.1.0")] // OnSave / OnLoad / OnNewGame; PutOn / TakeOff / Settings (missions)
     public sealed class Plugin : BasePlugin
     {
         public const string PluginGuid = "FlanderDev.SFM.Yoke";
         public const string PluginName = "Yoke";
-        public const string PluginVersion = "1.0.0";
+        public const string PluginVersion = "1.1.0";
         private const string ModelResource = "Yoke.assets.yoke.ykm";
 
         internal static ManualLogSource Logger;
@@ -92,6 +92,17 @@ namespace Yoke
                 // Like handcuffs: walking and crouching stay, no running, nothing that needs her hands, no pose skills.
                 Blocks = () => RestraintHub.Blocks.Running | RestraintHub.Blocks.HandActions | RestraintHub.Blocks.PoseSkills,
                 OnChosen = () => { var c = YokeController.Instance; if (c != null) c.OnRingChosen(); },
+                PutOn = () => YokeController.Instance == null ? "not ready" : YokeController.Instance.PutOn(),
+                TakeOff = () => YokeController.Release(),
+                Settings = new[]
+                {
+                    new RestraintSetting
+                    {
+                        Name = "width", Unit = "% of the model",
+                        Get = () => YokeController.Width() * 100f,
+                        Set = v => YokeController.Instance == null ? "not ready" : YokeController.Instance.SetWidth(v / 100f, false),
+                    },
+                },
                 Attempt = () => YokeController.Instance == null ? 0f : YokeController.Instance.Machine.Attempt,
                 Controls = "+/- width",
             };
