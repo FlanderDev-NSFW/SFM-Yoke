@@ -11,11 +11,11 @@ A neck-and-wrist yoke for SecretFlasherManaka (BepInEx 6 IL2CPP): a metal bar ac
 and a wrist cuff at each end; her hands are held up beside her head. Worn on the body like SpreaderBar, so she can still walk.
 Single-player/offline only.
 
-**Needs RestraintHub** (1.0.0+, a separate download): ring entry, number shortcuts, the list of worn restraints, F and + / -
-routing (only while the yoke is the selected restraint), input blocking and conflicts are the hub's (`docs/mods/RestraintHub.md`).
+**Needs RestraintHub** (2.0.0+, a separate download): the panel row, the list of worn restraints, F and + / - routing (only while
+the yoke is the selected restraint), input blocking and conflicts are the hub's (RestraintHub's `docs/RestraintHub.md`).
 
-**Status 0.3.0:** usable, L3 (see Verification). Pick **Yoke** in the common ring (hold 1; the restraint page after the game's, page
-5) or put it on a number key; hold **F** to struggle free (`Unlock.SuccessChance`, default: the first attempt).
+**Status 2.0.0:** usable, L3 (see Verification). Open the hub's panel (`U`) and click **Yoke** (Wearables); hold **F** to struggle
+free (`Unlock.SuccessChance`, default: the first attempt).
 
 - **Pose:** both arms are aimed every frame on top of the animation (walking, crawling, idle ...): the forearm passes up through
   its cuff as upright as the arm allows, the cuff near the wrist (`Pose.CuffOnForearm`), the upper arm reaching its elbow exactly
@@ -36,7 +36,7 @@ routing (only while the yoke is the selected restraint), input blocking and conf
   fixed cuffs, `CuffMaxAngle` 0, at a 45 deg lean as before).
 - **Size:** the yoke (rods, cuffs' spacing) is scaled from her spine (sizes differ per save), the rings fitted to her neck and
   wrists; all sized again when her body changes (after a load it is measured before her body settings apply).
-- **Saved** with the game (lock, unlock chance, number shortcuts; three keys in the slot file); a load with the yoke on puts it back.
+- **Saved** with the game (lock and unlock chance in the slot file; the shortcut key of 1.x is ignored); a load with the yoke on puts it back.
 
 ## Model
 
@@ -54,7 +54,7 @@ cuffs move along the bar and the rods stretch. 54k triangles; the game's handcuf
 ## Config (`BepInEx/config/FlanderDev.SFM.Yoke.cfg`)
 | Key | Default | Meaning |
 |---|---|---|
-| General.RingLabel | Yoke | name of the ring entry |
+| General.RingLabel | Yoke | panel / list text (the key name is kept from 1.x) |
 | Unlock.AttemptSeconds | 4.5 | seconds of holding F per attempt |
 | Unlock.SuccessChance | 1 | chance an attempt frees her (failures add 0.02, like the game's handcuffs) |
 | Yoke.Width | 1 | cuffs' distance from the neck ring as a factor of the model; + / - store their result here |
@@ -111,6 +111,7 @@ arm misses its elbow); `game get Yoke.YokeController::NeckDeg` (the neck ring's 
   3.3 cm, cuff hole 2.3 cm, yoke scale unchanged (0.145); screenshots front (mirror) and back: snug, no skin through the rings.
   Width put back to the player's 1.03; the clearances set to the new defaults (the old ones were this version's own).
 - L3 1.1.0 (2026-11-02, with RestraintHub 1.1.0 and the test missions - details in RestraintHub's `docs/RestraintHub.md`, L3 1.1.0): put on and locked by a mission (no struggling: F held 8 s, still on; allowed again: struggled free), setting `width` 115.2 -> 120 % (not stored in the config), taken off by its timer, by the end of the mission's thread and by the example mission's timer. `+` / `-` go through the same `SetWidth`.
+- L3 2.0.0 (2026-11-07, RestraintHub 2.0.0): ported to the hub's 2.0 API (`Wearable`; no ring entry, number keys or shortcut save key; the hub shows `PutOn`'s reason). In game: listed in the panel (`U`), put on from it ("put on: Yoke"), the binders then refused ("Binders conflicts with Yoke (Arms)"), saved and loaded locked.
 
 ## Known limits / next
 - At the model's width the forearms lean ~40 deg out (the cuffs are wider than her bent arms reach upright); `-` to ~0.85 stands

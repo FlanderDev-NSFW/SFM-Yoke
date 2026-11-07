@@ -11,17 +11,17 @@ using Yoke.Logic;
 namespace Yoke
 {
     [BepInPlugin(PluginGuid, PluginName, PluginVersion)]
-    [BepInDependency(Hub.Guid, "^1.1.0")] // OnSave / OnLoad / OnNewGame; PutOn / TakeOff / Settings (missions)
+    [BepInDependency(Hub.Guid, "^2.0.0")] // RestraintHub 2: the panel (U), PutOn / TakeOff, mission settings
     public sealed class Plugin : BasePlugin
     {
         public const string PluginGuid = "FlanderDev.SFM.Yoke";
         public const string PluginName = "Yoke";
-        public const string PluginVersion = "1.1.0";
+        public const string PluginVersion = "2.0.0";
         private const string ModelResource = "Yoke.assets.yoke.ykm";
 
         internal static ManualLogSource Logger;
-        /// <summary>The yoke's registration with RestraintHub (ring entry, selection, F and + / -).</summary>
-        internal static Restraint Entry;
+        /// <summary>The yoke's registration with RestraintHub (panel row, selection, F and + / -).</summary>
+        internal static Wearable Entry;
         public static ConfigEntry<string> RingLabel;
         public static ConfigEntry<float> AttemptSeconds, SuccessChance;
         public static ConfigEntry<float> Width, StepPercent, Size, NeckClearanceCm, CuffClearanceCm, CuffMaxAngle, NeckRingMaxAngle, MetalShade, NeckRingAt, CuffOnForearm;
@@ -30,7 +30,7 @@ namespace Yoke
         public override void Load()
         {
             Logger = Log;
-            RingLabel = Config.Bind("General", "RingLabel", "Yoke", "Name of the ring menu entry.");
+            RingLabel = Config.Bind("General", "RingLabel", "Yoke", "Name in the restraint panel.");
             AttemptSeconds = Config.Bind("Unlock", "AttemptSeconds", 4.5f, new ConfigDescription(
                 "Seconds of holding the interact key (F) per attempt to struggle free.", new AcceptableValueRange<float>(0.5f, 30f)));
             SuccessChance = Config.Bind("Unlock", "SuccessChance", 1f, new ConfigDescription(
@@ -78,12 +78,10 @@ namespace Yoke
             }
             ClassInjector.RegisterTypeInIl2Cpp<YokeController>();
             var controller = AddComponent<YokeController>();
-            Entry = new Restraint
+            Entry = new Wearable
             {
                 Id = "Yoke",
-                RingValue = YokeController.RingItemValue,
                 Label = () => RingLabel.Value,
-                ShortcutSaveKey = Patches.SaveKeyShortcuts,
                 OnSave = Patches.Save,
                 OnLoad = Patches.Load,
                 OnNewGame = () => YokeController.Instance?.OnNewGame(),
@@ -91,7 +89,6 @@ namespace Yoke
                 IsWorn = () => YokeController.Instance != null && YokeController.Instance.Machine.Worn,
                 // Like handcuffs: walking and crouching stay, no running, nothing that needs her hands, no pose skills.
                 Blocks = () => RestraintHub.Blocks.Running | RestraintHub.Blocks.HandActions | RestraintHub.Blocks.PoseSkills,
-                OnChosen = () => { var c = YokeController.Instance; if (c != null) c.OnRingChosen(); },
                 PutOn = () => YokeController.Instance == null ? "not ready" : YokeController.Instance.PutOn(),
                 TakeOff = () => YokeController.Release(),
                 Settings = new[]

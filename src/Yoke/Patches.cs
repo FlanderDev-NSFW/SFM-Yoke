@@ -5,13 +5,12 @@ using RestraintHub;
 
 namespace Yoke
 {
-    /// <summary>Harmony hooks into the game: the yoke's own save data. The ring entry, input blocking, unlock gauge and number
+    /// <summary>Harmony hooks into the game: the yoke's own save data. The panel row, input blocking, unlock gauge and number
     /// shortcuts are RestraintHub's. Save and load go through RestraintHub (OnSave / OnLoad).</summary>
     internal static class Patches
     {
         public const string SaveKeyLocked = "Yoke.Locked";
         public const string SaveKeyChance = "Yoke.Chance";
-        public const string SaveKeyShortcuts = "Yoke.Shortcuts"; // written by the hub (kept from 0.1.0)
 
         // --- save / load: the lock and its chance (RestraintHub calls these right after the game wrote / read a slot) -----
 

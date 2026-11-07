@@ -1,4 +1,4 @@
-# Yoke 1.1.0
+# Yoke 2.0.0
 
 A neck-and-wrist yoke for **Secret Flasher Manaka**: a metal bar across her shoulders with a ring around her neck and a cuff
 at each end. Her hands are held up beside her head, and she can still walk.
@@ -8,13 +8,13 @@ Model: ["BDSM Yoke"](https://smutba.se/project/29b8fcfb-1a89-406b-910b-51a8af653
 ## Requirements
 - Secret Flasher Manaka (tested with v1.1.3)
 - BepInEx 6 for IL2CPP (tested with build 738)
-- **RestraintHub 1.1.0** or newer
+- **RestraintHub 2.0.0** or newer (2.x)
 
 ## Install
 Extract the zip into the game folder (the folder with `SecretFlasherManaka.exe`). You get `BepInEx/plugins/Yoke/`.
 
 ## How to use
-Hold a ring key (e.g. `1`), page with `Z` / `X` to the restraint page and click **Yoke**. With it selected in the worn list
+Open the restraint panel with `U` and click **Yoke** (in Wearables). With it selected in the worn list
 (`B` selects):
 
 | Key | Does |

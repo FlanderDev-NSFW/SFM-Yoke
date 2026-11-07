@@ -14,7 +14,7 @@ using Yoke.Logic;
 namespace Yoke
 {
     /// <summary>
-    /// Owns the yoke: lock state, width, the arm pose and the model. The ring entry, number shortcuts, F / + / - routing and the
+    /// Owns the yoke: lock state, width, the arm pose and the model. The panel row, F / + / - routing and the
     /// input blocking are RestraintHub's (<see cref="Plugin.Entry"/>). Bridge diagnostics (session started with
     /// <c>--allow-invoke</c>): <c>game call Yoke.YokeController LockHere</c> / <c>Release</c>, <c>game get Yoke.YokeController::Status</c>.
     /// </summary>
@@ -24,7 +24,6 @@ namespace Yoke
         internal static YokeController Instance;
         public YokeController(IntPtr pointer) : base(pointer) { }
 
-        public const int RingItemValue = 9300; // SpreaderBar 9100, WallRestraint 9200
         internal readonly LockMachine Machine = new LockMachine();
         private static int _failures;
 
@@ -82,15 +81,8 @@ namespace Yoke
 
         // --- ring choice -----------------------------------------------------------------------------------------------------
 
-        /// <summary>The ring entry or a number key, when the yoke is off and nothing worn holds her neck or arms (the hub checked).</summary>
-        [HideFromIl2Cpp]
-        internal void OnRingChosen()
-        {
-            string why = PutOn();
-            if (why != null) GameUi.Message("Can't put the yoke on: " + why);
-        }
 
-        /// <summary>Put it on (the ring entry, or a mission through RestraintHub): null when it is closing, else why not.</summary>
+        /// <summary>Put it on (the hub's panel, or a mission): null when it is closing, else why not.</summary>
         [HideFromIl2Cpp]
         internal string PutOn()
         {
@@ -127,7 +119,7 @@ namespace Yoke
         private float _scale;
         private bool _measured;
 
-        /// <summary>Put the yoke on (the ring entry; also a bridge diagnostic - which skips the hub's check for restraints that
+        /// <summary>Put the yoke on (the hub's panel; also a bridge diagnostic - which skips the hub's check for restraints that
         /// hold the same parts).</summary>
         public static string LockHere()
         {
